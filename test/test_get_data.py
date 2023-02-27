@@ -10,4 +10,4 @@ e=1983
 path="../scrap/"
 output="2m_air"
 
-_getdata(s,e,path)
+_getdata(s,e,path,output)
