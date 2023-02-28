@@ -90,6 +90,29 @@ class netcdf:
             ax.set_title(title,fontsize=size)
         plt.show()
 
+    def _plot_with_xarray(ds,clim=None,colormap=None,levels=None):
+
+        if colormap==None:
+            c="jet"
+        else:
+            c=colormap
+        if levels==None:
+            levels=20
+        plt.figure(figsize=(7.5,4.5),constrained_layout=True)
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
+        ax.coastlines(resolution='110m') 
+        ax.add_feature(cfeature.LAND,zorder=2)
+        
+        plot_kwargs={"orientation": "horizontal","fraction":0.12,
+                     'pad':0.03,'aspect':40}
+        if clim==None:
+            ds.plot(levels=30,\
+                cbar_kwargs=plot_kwargs,robust=True)
+        if clim !=None:
+            ds.plot(levels=30,vmin=clim[0],vmax=clim[1],
+                cbar_kwargs=plot_kwargs,robust=True)
+    
+        plt.show()
 
 
 
