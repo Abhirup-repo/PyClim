@@ -6,7 +6,7 @@ from get_data import _getdata
 #import _getdata 
 
 s=1980
-e=1983
+e=2010
 path="../scrap/"
 output="2m_air"
 

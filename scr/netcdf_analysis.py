@@ -90,6 +90,29 @@ class netcdf:
             ax.set_title(title,fontsize=size)
         plt.show()
 
+    def _plot_with_xarray(ds,clim=None,colormap=None,levels=None):
+
+        if colormap==None:
+            c="jet"
+        else:
+            c=colormap
+        if levels==None:
+            levels=20
+        plt.figure(figsize=(7.5,4.5),constrained_layout=True)
+        ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=180))
+        ax.coastlines(resolution='110m') 
+        ax.add_feature(cfeature.LAND,zorder=2)
+        
+        plot_kwargs={"orientation": "horizontal","fraction":0.12,
+                     'pad':0.03,'aspect':40}
+        if clim==None:
+            ds.plot(levels=30,\
+                cbar_kwargs=plot_kwargs,robust=True)
+        if clim !=None:
+            ds.plot(levels=30,vmin=clim[0],vmax=clim[1],
+                cbar_kwargs=plot_kwargs,robust=True)
+    
+        plt.show()
 
 
 
@@ -98,19 +121,6 @@ class netcdf:
 
 
 
-# def _plotdata(data,lat,lon,extend="both",cmap="jet",size=14,extent=None,colorbar=None,ticks=None,savefig=False,plotpath=None):
-#     """This function plot a the netcdf file at single time step/mean time, and at a sigle pressure level
-
-#     Args:
-#         data (array): provide the 2D array
-#         lat (array): latitude of the dataset
-#         lon (_type_): longitude of the dataset
-#         extend (str, optional): extend of the colorbar. Defaults to "both".
-#         cmap (_type_, optional): _description_. Defaults to "jet".
-#         colorbar (_type_, optional): Limit of the colorbar, if it not given, then set at 25 and 75 percentile. Defaults to None.
-#         ticks (_type_, optional): Gaps between ticks in the ticks in the colorbar. Defaults to None.
-#         savefig: T
-#     """
 
 
 
