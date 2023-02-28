@@ -114,8 +114,9 @@ class netcdf:
     
         plt.show()
 
-
-
+    def _mon_climatology(ds):
+        return ds.groupby('time.month').mean('time')
+    
 
 
 
