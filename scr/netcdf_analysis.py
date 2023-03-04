@@ -13,29 +13,17 @@ import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 class netcdf:
-    def __init__(self,data,lat,lon,extent=None,fontfamily=None):
-        """This is a class to analyze/plot netcdf file
+    def __init__(self,ds):
+        """We initialize the module
+
         Args:
-            data (array): provide the 2D array
-            lat (array): latitude of the dataset
-            lon (array): longitude of the dataset_
-            cextend (str, optional): extension of the colorbar. Defaults to "both".
-            cmap (str, optional): colormap of the contourf. Defaults to "jet".
-            size (int, optional): size of the lables . Defaults to 14.
-            extent (array, optional): extent of the map [lon1,lon2,lat1,lat2]. Defaults to None.
-            clim (array, optional): colorbar limit (default 25/75 percentile). Defaults to None.
-            ticks (int, optional): gap between the ticks in the colorbar. Defaults to None.
-            fontfamily (str, optional): setting the font-family of the system
+            ds (xarray data): Here we pass the data opened by xarray.
         """
 
-        self.data=data
-        self.lat=lat
-        self.lon=lon
-        self.extent=extent
-        self.fontfamily=fontfamily
+        self.ds=ds
         
-    def _plotdata(self,figsize=(7.5,5.5),size=14,cmap="jet",central_longitude=180,cextend="both",
-                  clim=None,title=None,cbar_label=None,savefig=False,savefigpath=None,format=None):
+    def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,fontfamily=None,extent=None,cmap="jet",cextend="both",
+                  clim=None,title=None,cbar_label=None,savefig=False,savefigpath=None,savefigname="fig",svformat=".png",dpi=300):
         """This function plots the netcdf file
 
         Args:
@@ -47,24 +35,29 @@ class netcdf:
             format(str,optional): The format of the plot to be saved. Defaults to .png
         """
 
-        latitude=self.lat
-        longitude=self.lon
+        latitude=lat
+        longitude=lon
         ticksize=size
         fontsize=size+2
+        #data=self.ds.values
+        if fontfamily==None:
+            plt.rcParams["font.family"]="sans.serif"
+        else:
+            plt.rcParams["font.family"]=fontfamily
 
         if clim==None:
-            lv=np.linspace(np.percentile(self.data,25),np.percentile(self.data,75),15)
+            lv=np.linspace(np.percentile(data,25),np.percentile(data,75),15)
         else:
             lv=clim
         
         fig, ax = plt.subplots(subplot_kw={'projection': ccrs.PlateCarree(central_longitude)},figsize=figsize)
 
-        if self.extent ==None:
+        if extent ==None:
             ax.set_extent([min(longitude),max(longitude),min(latitude),max(latitude)],crs=ccrs.PlateCarree())
-        if self.extent!=None:
-            ax.set_extent(self.extent,crs=ccrs.PlateCarree())
+        if extent!=None:
+            ax.set_extent(extent,crs=ccrs.PlateCarree())
 
-        mm = ax.contourf(longitude,latitude,self.data,transform=ccrs.PlateCarree(),\
+        mm = ax.contourf(longitude,latitude,data,transform=ccrs.PlateCarree(),\
                  levels=lv,\
                  cmap=cmap,extend=cextend)
 
@@ -80,7 +73,7 @@ class netcdf:
         gl.xformatter = LONGITUDE_FORMATTER
         gl.yformatter = LATITUDE_FORMATTER
 
-        im_ratio = self.data.shape[0]/self.data.shape[1]
+        im_ratio = data.shape[0]/data.shape[1]
         cb = plt.colorbar(mm, shrink=0.9, drawedges='True',pad=0.03,fraction=0.04*im_ratio,ticks=lv[::2],format="%3.1f")
         cb.ax.tick_params(size=10,labelsize=ticksize-2)
         if cbar_label!=None:
@@ -88,14 +81,23 @@ class netcdf:
 
         if title!=None:
             ax.set_title(title,fontsize=size)
+        
+        if savefig==True:
+            if savefigpath!=None:
+                print("As the savefigname is not given, so it saves as fig")
+                plt.savefig(savefigpath+savefigname+svformat,dpi=dpi,bbox_inches="tight")
+            else:
+                plt.savefig(savefigpath+savefigname+svformat,dpi=dpi,bbox_inches="tight")
         plt.show()
 
-    def _plot_with_xarray(ds,clim=None,colormap=None,levels=None):
+## We plot the data using xarray inbuilt function
+    def _plot_with_xarray(self,var,level=0,dim=3,timestamp=0,clim=None,levels=None):
 
-        if colormap==None:
-            c="jet"
-        else:
-            c=colormap
+        ds=self.ds
+        if dim==3:
+            da=ds[f"{var}"][timestamp,:,:]
+        if dim==4:
+            da=ds[f"{var}"][timestamp,level,:,:]
         if levels==None:
             levels=20
         plt.figure(figsize=(7.5,4.5),constrained_layout=True)
@@ -106,18 +108,26 @@ class netcdf:
         plot_kwargs={"orientation": "horizontal","fraction":0.12,
                      'pad':0.03,'aspect':40}
         if clim==None:
-            ds.plot(levels=30,\
+            da.plot(levels=30,\
                 cbar_kwargs=plot_kwargs,robust=True)
         if clim !=None:
-            ds.plot(levels=30,vmin=clim[0],vmax=clim[1],
+            da.plot(levels=30,vmin=clim[0],vmax=clim[1],
                 cbar_kwargs=plot_kwargs,robust=True)
     
         plt.show()
 
-    def _mon_climatology(ds):
-        return ds.groupby('time.month').mean('time')
+    def _mon_climatology(self):
+        return self.ds.groupby('time.month').mean('time')
     
+    # def _plot_monthly_climatology(self,dim=3,level=0,month=0):
 
+    #     da=self._mon_climatology()
+
+
+
+
+    def _mon_anomaly (self):
+        return self.ds.groupby('time.month') - self._mon_climatology()
 
 
 
