@@ -37,6 +37,14 @@ class netcdf:
             user_date_range = pd.date_range(start=a,end=b,freq="MS")
             self.ds[f"{timecord}"]=user_date_range
             self.ds=self.ds.rename(name_dict={f"{timecord}":"time"})
+
+    def _datadetails(self):
+        "This methods provide a comprehensive details of the data"
+        print(self.ds)
+
+
+
+
     def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,fontfamily=None,extent=None,cmap="jet",cextend="both",
                   clim=None,clevel=20,title=None,cbar_label=None,savefig=False,savefigpath=None,savefigname="fig",svformat=".png",dpi=300):
         """This function plots the netcdf file
@@ -106,14 +114,25 @@ class netcdf:
         plt.show()
 
 ## We plot the data using xarray inbuilt function
-    def _plot_with_xarray(self,var,level=0,dim=3,timestamp=0,clim=None,levels=None,cmap='jet'):
+    def _plot_with_xarray(self,var,level=0,dim=3,timestamp=0,clim=None,clevels=None,cmap='jet'):
+        """By calling this method, one can plot the file for a particular date, pressure level
+
+        Args:
+            var (str): variable name
+            level (int, optional): Pressure level. Defaults to 0.
+            dim (int, optional): If the dataset has multiple levels then change dim=4. Defaults to 3.
+            timestamp (int, optional): The time we want to visulize. Defaults to 0.
+            clim (_type_, optional): colorbar limit, should be a list/array, e.g., [low,high]. Defaults to None.
+            clevels (_type_, optional): No of levels in the colorbar. Defaults to None.
+            cmap (str, optional): colormap. Defaults to 'jet'.
+        """
 
         ds=self.ds
         if dim==3:
             da=ds[f"{var}"][timestamp,:,:]
         if dim==4:
             da=ds[f"{var}"][timestamp,level,:,:]
-        if levels==None:
+        if clevels==None:
             levels=20
         plt.figure(figsize=(7.5,4.5),constrained_layout=True)
         ax = plt.axes(projection=ccrs.PlateCarree())
@@ -194,8 +213,83 @@ class netcdf:
         ax.set_title("Monthly anomaly of {}".format(var),fontsize=14)
         plt.show()
 
+    def _annual_mean(self):
+        """ Compute the annual mean """
+        return self.ds.groupby('time.year').mean('time')
 
+    def _zonal_mean(self,var,lat,level=0,dim=3,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",dpi=300):
+        " This function computes the zonal mean"
 
+        if dim==3:
+            da=self.ds[f"{var}"][:,:,:].values
+        if dim==4:
+            da=self.ds[f"{var}"][:,level,:,:].values
 
+        mean_time=da.mean(axis=0)
+        lon_mean=mean_time.mean(axis=1)
 
+        plt.figure(figsize=(5.5,3.5),constrained_layout=True)
+        plt.plot(lat,lon_mean)
+        plt.grid(linewidth=0.35)
+        plt.title("Zonal mean of {}".format(var),fontsize=12)
+        if savefig==True:
+            plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
+
+        plt.show()
+
+    def _vertical_profile(self,var,latitude,longitude,plevel,latrange=[15,-15],exdata=None,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",cmap="jet",dpi=300):
+
+        if exdata!=None:
+            print("We use external data")
+            d=exdata
+        else:
+            print ("We use data")
+            d=self._annual_mean()
+
+        _range=np.where((latitude<=latrange[0])&(latitude>=latrange[1]))[0]
+        var_=d[f"{var}"]
+        var_z=var_[:,:,_range[0]:_range[-1]+1,:]
+
+        zonal_mean_time=var_z.mean(axis=0)
+
+        zonal_mean=zonal_mean_time.mean(axis=1)
+     
+        plt.figure(figsize=(9.5,4.5))
+        plt.contourf(longitude,plevel,zonal_mean,20,cmap=cmap)
+        plt.gca().invert_yaxis()
+        #plt.colorbar(label="CC")
+        plt.colorbar()
+        plt.xlabel(r"Longitude ($^{o}E$)",fontsize=14)
+        plt.ylabel("Pressure levels (hPa)",fontsize=14)
+        plt.tick_params(labelsize=12)
+        plt.title(r"Vertcal profile of {} in lat range {}".format(var,latrange),fontsize=14)
+        if savefig==True:
+            plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
+
+        plt.show()
+
+    def _vertical_profile_from_data(data,var,latitude,longitude,plevel,latrange=[15,-15],savefig=False,savefigpath="./",savefigname="fig",svformat=".png",cmap="jet",dpi=300):
+
+        d=data
+        _range=np.where((latitude<=latrange[0])&(latitude>=latrange[1]))[0]
+        var_=d[f"{var}"]
+        var_z=var_[:,:,_range[0]:_range[-1]+1,:]
+
+        zonal_mean_time=var_z.mean(axis=0)
+
+        zonal_mean=zonal_mean_time.mean(axis=1)
+     
+        plt.figure(figsize=(9.5,4.5))
+        plt.contourf(longitude,plevel,zonal_mean,20,cmap=cmap)
+        plt.gca().invert_yaxis()
+        #plt.colorbar(label="CC")
+        plt.colorbar()
+        plt.xlabel(r"Longitude ($^{o}E$)",fontsize=14)
+        plt.ylabel("Pressure levels (hPa)",fontsize=14)
+        plt.tick_params(labelsize=12)
+        plt.title(r"Vertcal profile of {} in lat range {}".format(var,latrange),fontsize=14)
+        if savefig==True:
+            plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
+
+        plt.show()
 
