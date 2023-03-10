@@ -42,8 +42,16 @@ class netcdf:
         "This methods provide a comprehensive details of the data"
         print(self.ds)
 
+    def _return_ds(self,pathname="./file.nc",save=False):
+        """This method returns and saves the netcdf file.
 
+        Args:
+            pathname (str, optional):Provide the path and file name in this format. Defaults to "./file.nc".
 
+        """
+        if save==True:
+            self.ds.to_netcdf(pathname)
+        return self.ds
 
     def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,fontfamily=None,extent=None,cmap="jet",cextend="both",
                   clim=None,clevel=20,title=None,cbar_label=None,savefig=False,savefigpath=None,savefigname="fig",svformat=".png",dpi=300):
@@ -217,6 +225,79 @@ class netcdf:
         """ Compute the annual mean """
         return self.ds.groupby('time.year').mean('time')
 
+    def _plot_annual_mean(self,var,level=0,dim=3,convert="",clim=None,
+                          clevels=None,cmap='jet',savefig=False,savefigpath="./",
+                          savefigname="fig",svformat=".png",dpi=300):
+        
+        ds1=self._annual_mean()
+        db=ds1.mean('year')
+
+
+
+
+        if dim==3:
+            da=db[f'{var}']
+
+        if dim==4:
+            da=db[f'{var}'][level,:,:]
+        
+        if convert=="m2mm":
+            print("The unit is converted from m to mm")
+            da=da*1000
+
+        if clevels==None:
+            levels=20
+        plt.figure(figsize=(7.5,4.5),constrained_layout=True)
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.coastlines(resolution='110m') 
+        #ax.add_feature(cfeature.LAND,zorder=2)
+        
+        plot_kwargs={"orientation": "horizontal","fraction":0.12,
+                     'pad':0.03,'aspect':40}
+        if clim==None:
+            da.plot(levels=30,\
+                cbar_kwargs=plot_kwargs,robust=True,cmap=cmap)
+        if clim !=None:
+            da.plot(levels=30,vmin=clim[0],vmax=clim[1],
+                cbar_kwargs=plot_kwargs,robust=True,cmap=cmap)
+
+        if savefig==True:
+            plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
+
+        plt.show()
+
+    def _mean_annual_difference(self,ds1,var,dim=3,level=0,
+                                savefig=False,savefigpath="./",savefigname="fig",
+                                    svformat=".png",cmap="RdBu_r",dpi=300):
+        
+        ds=self._annual_mean()
+
+        damon=ds.mean("year")
+        dbmon=ds1.mean("year")
+
+        if dim==4:
+            diff=damon[f"{var}"][level,:,:]-dbmon[f"{var}"][level,:,:]
+
+        else:
+            diff=damon-dbmon
+        plt.figure(figsize=(7.5,4.5),constrained_layout=True)
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        ax.coastlines(resolution='110m') 
+        #ax.add_feature(cfeature.LAND,zorder=2)
+
+        plot_kwargs={"orientation": "horizontal","fraction":0.12,
+                        'pad':0.03,'aspect':40}
+
+        diff.plot(levels=30,\
+                cbar_kwargs=plot_kwargs,robust=True,cmap=cmap)
+        if savefig==True:
+            plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
+
+        plt.show()
+
+
+
+
     def _zonal_mean(self,var,lat,level=0,dim=3,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",dpi=300):
         " This function computes the zonal mean"
 
@@ -237,14 +318,10 @@ class netcdf:
 
         plt.show()
 
-    def _vertical_profile(self,var,latitude,longitude,plevel,latrange=[15,-15],exdata=None,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",cmap="jet",dpi=300):
+    def _vertical_profile(self,var,latitude,longitude,plevel,latrange=[15,-15],exdata=None,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",cmap="jet",dpi=300,title=None):
 
-        if exdata!=None:
-            print("We use external data")
-            d=exdata
-        else:
-            print ("We use data")
-            d=self._annual_mean()
+        
+        d=self._annual_mean()
 
         _range=np.where((latitude<=latrange[0])&(latitude>=latrange[1]))[0]
         var_=d[f"{var}"]
@@ -262,13 +339,18 @@ class netcdf:
         plt.xlabel(r"Longitude ($^{o}E$)",fontsize=14)
         plt.ylabel("Pressure levels (hPa)",fontsize=14)
         plt.tick_params(labelsize=12)
-        plt.title(r"Vertcal profile of {} in lat range {}".format(var,latrange),fontsize=14)
+        if title ==None:
+            plt.title(r"Vertcal profile of {} in lat range {}".format(var,latrange),fontsize=14)
+        else:
+            plt.title(f"{title}",fontsize=14)
         if savefig==True:
             plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
 
         plt.show()
 
-    def _vertical_profile_from_data(data,var,latitude,longitude,plevel,latrange=[15,-15],savefig=False,savefigpath="./",savefigname="fig",svformat=".png",cmap="jet",dpi=300):
+    def _vertical_profile_from_data(data,var,latitude,longitude,plevel,latrange=[15,-15],
+                                    savefig=False,savefigpath="./",savefigname="fig",
+                                    svformat=".png",cmap="jet",dpi=300):
 
         d=data
         _range=np.where((latitude<=latrange[0])&(latitude>=latrange[1]))[0]
@@ -292,4 +374,7 @@ class netcdf:
             plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
 
         plt.show()
+    
+    
+
 
