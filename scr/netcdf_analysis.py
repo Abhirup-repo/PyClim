@@ -53,8 +53,11 @@ class netcdf:
             self.ds.to_netcdf(pathname)
         return self.ds
 
-    def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,fontfamily=None,extent=None,cmap="jet",cextend="both",
-                  clim=None,clevel=20,title=None,cbar_label=None,savefig=False,savefigpath=None,savefigname="fig",svformat=".png",dpi=300):
+    def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,
+                  fontfamily=None,extent=None,cmap="jet",cextend="both",
+                  clim=None,clevel=20,title=None,cbar_label=None,cbar_position="vertical",
+                  savefig=False,savefigpath=None,savefigname="fig",
+                  svformat=".png",dpi=300):
         """This function plots the netcdf file
 
         Args:
@@ -96,7 +99,7 @@ class netcdf:
         #ax.add_feature(cfeature.OCEAN.with_scale('110m'),zorder=2)
         ax.add_feature(cfeature.BORDERS.with_scale('50m'))
         ax.add_feature(cfeature.STATES)
-        ax.add_feature(cfeature.LAND,zorder=2)
+        #ax.add_feature(cfeature.LAND,zorder=2)
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                         linewidth=1, color='gray', alpha=0.5, linestyle='--')
         #gl.xlabels_top = False
@@ -106,7 +109,7 @@ class netcdf:
         gl.yformatter = LATITUDE_FORMATTER
 
         im_ratio = data.shape[0]/data.shape[1]
-        cb = plt.colorbar(mm, shrink=0.9, drawedges='True',pad=0.03,fraction=0.04*im_ratio,ticks=lv[::2],format="%3.1f")
+        cb = plt.colorbar(mm, shrink=0.9,orientation=cbar_position, drawedges='True',pad=0.03,fraction=0.04*im_ratio,ticks=lv[::2],format="%3.1f")
         cb.ax.tick_params(size=10,labelsize=ticksize-2)
         if cbar_label!=None:
             cb.set_label(label=cbar_label,size=size-2)
@@ -145,7 +148,7 @@ class netcdf:
         plt.figure(figsize=(7.5,4.5),constrained_layout=True)
         ax = plt.axes(projection=ccrs.PlateCarree())
         ax.coastlines(resolution='110m') 
-        ax.add_feature(cfeature.LAND,zorder=2)
+        #ax.add_feature(cfeature.LAND,zorder=2)
         
         plot_kwargs={"orientation": "horizontal","fraction":0.12,
                      'pad':0.03,'aspect':40}
@@ -190,6 +193,19 @@ class netcdf:
         ax.set_title("Monthly climatology of {} for month {}".format(var,months[mon-1]),fontsize=16)
         plt.show()
 
+    def _mean_seasonal_climatology(self,season="DJF"):
+        
+        ds=self._mon_climatology()
+        if season=="DJF":
+            season_data=ds.sel(month=ds.month.isin([12,1,2]))
+        if season=="MAM":
+            season_data=ds.sel(month=ds.month.isin([3,4,5]))
+        if season=="JJA":
+            season_data=ds.sel(month=ds.month.isin([6,7,8]))
+        if season=="SON":
+            season_data=ds.sel(month=ds.month.isin([9,10,11]))
+
+        return season_data.mean('month')
 
     def _monthly_anomaly (self):
         return self.ds.groupby('time.month') - self._mon_climatology()
@@ -221,6 +237,15 @@ class netcdf:
         ax.set_title("Monthly anomaly of {}".format(var),fontsize=14)
         plt.show()
 
+    def _daily_climatology(self):
+        return self.ds.groupby('time.day').mean('time')   
+
+
+    def _daily_anomaly(self):
+        return self.ds.groupby("time.day")-self._daily_climatology()
+
+
+
     def _annual_mean(self):
         """ Compute the annual mean """
         return self.ds.groupby('time.year').mean('time')
@@ -231,9 +256,6 @@ class netcdf:
         
         ds1=self._annual_mean()
         db=ds1.mean('year')
-
-
-
 
         if dim==3:
             da=db[f'{var}']
@@ -266,7 +288,8 @@ class netcdf:
 
         plt.show()
 
-    def _mean_annual_difference(self,ds1,var,dim=3,level=0,
+    def _mean_annual_difference(self,ds1,var1,var2='',samedata=True,dim=3,level=0,
+                                title="Mean annual difference",
                                 savefig=False,savefigpath="./",savefigname="fig",
                                     svformat=".png",cmap="RdBu_r",dpi=300):
         
@@ -274,12 +297,14 @@ class netcdf:
 
         damon=ds.mean("year")
         dbmon=ds1.mean("year")
-
+        if samedata==True:
+            var2=var1
+        
         if dim==4:
-            diff=damon[f"{var}"][level,:,:]-dbmon[f"{var}"][level,:,:]
+            diff=damon[f'{var1}'][level,:,:]-dbmon[f'{var2}'][level,:,:]
 
         else:
-            diff=damon-dbmon
+            diff=damon[f'{var1}']-dbmon[f'{var2}']
         plt.figure(figsize=(7.5,4.5),constrained_layout=True)
         ax = plt.axes(projection=ccrs.PlateCarree())
         ax.coastlines(resolution='110m') 
@@ -290,13 +315,11 @@ class netcdf:
 
         diff.plot(levels=30,\
                 cbar_kwargs=plot_kwargs,robust=True,cmap=cmap)
+        plt.title(title,fontsize=14)
         if savefig==True:
             plt.savefig(savefigpath+savefigname+svformat,bbox_inches="tight",dpi=dpi)
 
         plt.show()
-
-
-
 
     def _zonal_mean(self,var,lat,level=0,dim=3,savefig=False,savefigpath="./",savefigname="fig",svformat=".png",dpi=300):
         " This function computes the zonal mean"
