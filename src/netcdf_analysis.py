@@ -7,13 +7,15 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import xarray as xr
+import matplotlib.patches as patches
+
 
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 
 class netcdf:
-    def __init__(self,ds,changetime=False,start=2000,timecord=None):
+    def __init__(self,ds,changetime=False,timescale='monthly',start=2000,timecord="time"):
         """We initialize the module
 
         Args:
@@ -28,15 +30,34 @@ class netcdf:
         self.timecord=timecord
 
         if changetime ==True:
-            timelen=len(self.ds[f"{timecord}"])
-            end=start+int((timelen/12)-1)
-            a="{}-01-01".format(start)  
-            b="{}-12-01".format(end)
-            a=pd.to_datetime(a)
-            b=pd.to_datetime(b)
-            user_date_range = pd.date_range(start=a,end=b,freq="MS")
-            self.ds[f"{timecord}"]=user_date_range
-            self.ds=self.ds.rename(name_dict={f"{timecord}":"time"})
+
+            if timescale=="monthly":
+                timelen=len(self.ds[f"{timecord}"])
+                end=start+int((timelen/12)-1)
+                a="{}-01-01".format(start)  
+                b="{}-12-01".format(end)
+                a=pd.to_datetime(a)
+                b=pd.to_datetime(b)
+                user_date_range = pd.date_range(start=a,end=b,freq="MS")
+                self.ds[f"{timecord}"]=user_date_range
+                if self.timecord!="time":
+                    self.ds=self.ds.rename(name_dict={f"{timecord}":"time"})
+
+            if timescale=="daily":
+
+                a="{}-01-01".format(start)
+                endyear=start+int(len(self.ds[f"{timecord}"])/365)-1 
+                b="{}-12-31".format(endyear)
+
+                df=pd.DataFrame({"Date":pd.date_range(a,b,freq="D")})
+                #df.set_index("Date",inplace=True)
+
+                dg = df[~((df.Date.dt.month == 2) & (df.Date.dt.day == 29))]
+
+                self.ds[f"{timecord}"]=dg.Date.values
+                if self.timecord!="time":
+                    self.ds=self.ds.rename(name_dict={f"{timecord}":"time"})
+
 
     def _datadetails(self):
         "This methods provide a comprehensive details of the data"
@@ -54,10 +75,10 @@ class netcdf:
         return self.ds
 
     def _plotdata(data,lat,lon,central_longitude=180,figsize=(7.5,5.5),size=14,
-                  fontfamily=None,extent=None,cmap="jet",cextend="both",
+                  fontfamily="sans-serif",extent=None,cmap="jet",cextend="both",
                   clim=None,clevel=20,title=None,cbar_label=None,cbar_position="vertical",
                   savefig=False,savefigpath=None,savefigname="fig",
-                  svformat=".png",dpi=300):
+                  svformat=".png",dpi=300,nan=False,land=True):
         """This function plots the netcdf file
 
         Args:
@@ -74,11 +95,11 @@ class netcdf:
         ticksize=size
         fontsize=size+2
         #data=self.ds.values
-        if fontfamily==None:
-            plt.rcParams["font.family"]="sans-serif"
-        else:
-            plt.rcParams["font.family"]=fontfamily
-
+        #if fontfamily==None:
+        #    plt.rcParams["font.family"]="sans-serif"
+        #else:
+        plt.rcParams["font.family"]=fontfamily
+        plt.rcParams["font.size"]=size
         if clim==None:
             lv=np.linspace(np.percentile(data,25),np.percentile(data,75),15)
         else:
@@ -94,12 +115,21 @@ class netcdf:
         mm = ax.contourf(longitude,latitude,data,transform=ccrs.PlateCarree(),\
                  levels=lv,\
                  cmap=cmap,extend=cextend)
-
+        if nan==True:
+            if len(np.isnan(data))>=0:
+                xmin, xmax = ax.get_xlim()
+                ymin, ymax = ax.get_ylim()
+                xy = (xmin,ymin)
+                width = xmax - xmin
+                height = ymax - ymin
+                p = patches.Rectangle(xy, width, height, hatch='/', fill=None, zorder=-2)
+                ax.add_patch(p)
         ax.coastlines(resolution='110m')
         #ax.add_feature(cfeature.OCEAN.with_scale('110m'),zorder=2)
         ax.add_feature(cfeature.BORDERS.with_scale('50m'))
         ax.add_feature(cfeature.STATES)
-        #ax.add_feature(cfeature.LAND,zorder=2)
+        if land==True:
+            ax.add_feature(cfeature.LAND,zorder=2)
         gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                         linewidth=1, color='gray', alpha=0.5, linestyle='--')
         #gl.xlabels_top = False
@@ -237,15 +267,57 @@ class netcdf:
         ax.set_title("Monthly anomaly of {}".format(var),fontsize=14)
         plt.show()
 
-    def _daily_climatology(self):
-        return self.ds.groupby('time.day').mean('time')   
+    # def _daily_climatology(self):
+    #     return self.ds.groupby('time.day').mean('time')   
 
 
-    def _daily_anomaly(self):
-        return self.ds.groupby("time.day")-self._daily_climatology()
+    # def _daily_anomaly(self):
+    #     return self.ds.groupby("time.day")-self._daily_climatology()
 
 
 
+    def _daily_anomaly(self,var,lat,lon,lv=0,dim=3):
+
+        ds=self.ds
+        if dim==3:
+            var=ds[f"{var}"][:,0,:,:].values
+        
+        if dim==4:
+            var=ds[f"{var}"][:,lv,:,:].values
+        nt,nlat,nlon=var.shape
+
+        if nt%365==0:
+            time=pd.DataFrame(ds.time,columns=["Date"])
+
+            TimeSeries=var.reshape((nt,nlat*nlon), order='F')
+
+            df=pd.DataFrame(TimeSeries,index=time["Date"])
+            ts=df.values
+            var_anomaly= np.zeros(ts.shape) # calculate the anomaly
+
+            time_cycle=365
+            for i in range(time_cycle):
+                sample = ts[i::time_cycle, :]
+                var_anomaly[i::time_cycle, :] = sample - sample.mean(axis=0)
+
+            data=var_anomaly.reshape((ts.shape[0],nlat,nlon), order='F')
+            ds_new= xr.Dataset({
+                'variable': xr.DataArray(
+                            data   = data,   # enter data here
+                            dims   = ['time','lat','lon'],
+                            coords = {'time': df.index.values,'lat':ds.lat,'lon':ds.lon},
+                            attrs  = {
+                                '_FillValue': -999.9,
+                                'units'     : 'K'
+                                }
+                            ),})
+            
+            
+            ds_new.rename(name_dict={"variable":f'{var}'})
+        else:
+            print('We use 365 days as a year to compute the anomaly')
+
+        return ds_new
     def _annual_mean(self):
         """ Compute the annual mean """
         return self.ds.groupby('time.year').mean('time')
@@ -398,6 +470,7 @@ class netcdf:
 
         plt.show()
     
-    
+    #def _daily_anomaly(ds,var,level=0,dim=3):
+        
 
 
